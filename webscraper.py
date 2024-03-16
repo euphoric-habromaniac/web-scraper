@@ -4,20 +4,24 @@ import time
 import random
 import csv
 
-def fetch_html(url):
+def fetch_html(url, retries=3):
     headers = {'User-Agent': 'Your User-Agent String'}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.text
-    else:
-        print("Failed to fetch HTML:", response.status_code)
-        return None
+    for _ in range(retries):
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()  # Raise an exception for 4xx or 5xx status codes
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print("Failed to fetch HTML:", e)
+            time.sleep(random.uniform(2, 5))  # Add delay before retrying
+    print("Max retries exceeded. Failed to fetch HTML.")
+    return None
 
-def parse_html(html):
+def parse_html(html, selector):
     soup = BeautifulSoup(html, 'html.parser')
     # Your parsing logic here
     # Example:
-    titles = soup.find_all('h2', class_='title')
+    titles = soup.select(selector)
     return [title.text.strip() for title in titles]
 
 def save_to_csv(data, filename):
@@ -27,13 +31,13 @@ def save_to_csv(data, filename):
         for item in data:
             writer.writerow([item])
 
-def scrape(url, num_pages=5):
+def scrape(url, selector, num_pages=5):
     all_titles = []
     for page in range(1, num_pages+1):
         page_url = f"{url}?page={page}"
         html = fetch_html(page_url)
         if html:
-            titles = parse_html(html)
+            titles = parse_html(html, selector)
             all_titles.extend(titles)
             print(f"Scraped page {page}")
             time.sleep(random.uniform(1, 3))  # Add some delay between requests
@@ -44,6 +48,7 @@ def scrape(url, num_pages=5):
 
 if __name__ == "__main__":
     url = 'https://example.com'
-    scraped_data = scrape(url)
+    selector = 'h2.title'  # Example CSS selector
+    scraped_data = scrape(url, selector)
     save_to_csv(scraped_data, 'scraped_data.csv')
     print("Scraping complete!")
